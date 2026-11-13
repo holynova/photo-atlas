@@ -1,13 +1,12 @@
-import {day, month, dateLabel, esc, basename, group, places, journeys, journeyTitle, drawMap, makeReport} from "./model.js";
-import {historyStats, historyMarkup, visitMarkup} from "./history.js";
+import {day, month, dateLabel, esc, basename, group, places, journeys, filterJourneys, inferResidences, journeyTitle, drawMap, makeReport} from "./model.js";
+import {historyStats, historyMarkup, visitMarkup, annualExport} from "./history.js";
 
 const $ = (selector) => document.querySelector(selector);
 const app = $("#app");
 const dialog = $("#drawer");
-const names = {map:"足迹图鉴", journal:"旅行年鉴", timeline:"时间工作台"};
-const s = {design:"map", data:null, world:[], from:"", to:"", year:"", cursor:null, mode:"period", unknown:true,
+const s = { data:null, world:[], from:"", to:"", year:"", cursor:null, mode:"period", unknown:true,
   selected:null, timer:null, camera:{zoom:1, center:null}, drawer:null, points:[], records:[], base:[],
-  journeyLimit:40, photoContext:null, scope:"domestic", domesticRegions:[], historyCity:null};
+  journeyLimit:40, photoContext:null, scope:"domestic", domesticRegions:[], historyCity:null, mapMode:"flat"};
 const number = (value) => new Intl.NumberFormat("zh-CN").format(value);
 const button = (action, label, value = "", classes = "") =>
   '<button type="button" class="' + classes + '" data-action="' + action + '" data-value="' + esc(value) + '">' + label + '</button>';
@@ -40,69 +39,54 @@ function sliced(photos) {
 }
 const months = () => [...new Set(ranged(activePhotos()).map(month).filter(Boolean))].sort();
 
-function sectionHead(title, key, label, end = "") {
-  return '<header class="section-head"><div><p class="section-meta">' + label + '</p><h2 id="' + key + '-title">' +
-    title + '</h2></div>' + end + '</header>';
+function sectionHead(title, key, end = "") {
+  return '<header class="section-head"><h2 id="' + key + '-title">' +
+    title + '</h2>' + end + '</header>';
 }
 const mapSection = '<section class="panel map-panel" aria-labelledby="map-title">' +
-  sectionHead("足迹地图","map","地理分布",'<span id="map-count" class="pill"></span>') +
-  '<div class="map-frame" id="map-frame"><canvas id="atlas-map" aria-label="按行政区着色的足迹地图"></canvas><div class="map-labels" id="map-labels" aria-hidden="true"></div><div class="map-controls">' +
+  sectionHead("足迹地图","map",'<div class="map-toolbar"><div class="map-mode" role="group" aria-label="地图视图">' +
+    button("map-mode","平面","flat") + button("map-mode","地球仪","globe") +
+    '</div><span id="map-count" class="pill"></span></div>') +
+  '<div class="map-frame" id="map-frame"><canvas id="atlas-map" tabindex="0" aria-label="按行政区着色的足迹地图"></canvas><div class="map-labels" id="map-labels" aria-hidden="true"></div><div class="map-controls">' +
   button("zoom-in","+","","map-key") + button("zoom-out","−","","map-key") + button("fit","全览","","map-key") +
   '</div><span class="map-credit">边界 · Natural Earth</span></div><div class="map-foot"><span><i></i>有记录</span><span><i></i>无记录</span><span id="map-hint"></span></div></section>';
 const timeSection = '<section class="panel time-panel" aria-labelledby="time-title">' +
-  sectionHead("时间回放","time","日期浏览",'<output id="time-label" for="month-range"></output>') +
+  sectionHead("时间回放","time",'<output id="time-label" for="month-range"></output>') +
   '<div class="time-controls"><button id="play" class="accent" type="button" data-action="play">播放</button><div class="time-track"><div class="bars" id="bars" aria-hidden="true"></div>' +
   '<input id="month-range" type="range" min="0" value="0" aria-label="按月回放"><div class="time-ends" id="time-ends"></div></div></div>' +
   '<div class="time-modes"><button data-action="mode" data-value="period">单月</button><button data-action="mode" data-value="cumulative">累计</button><button data-action="clear-time">清除回放</button><button data-action="photos">查看记录</button></div></section>';
 const journeySection = '<section class="panel journal-panel" aria-labelledby="journey-title">' +
-  sectionHead("行程年鉴","journey","照片记录",'<span id="journey-count" class="pill"></span>') +
+  sectionHead("行程年鉴","journey",'<span id="journey-count" class="pill"></span>') +
   '<div class="journeys" id="journeys"></div></section>';
 const citySection = '<section class="panel city-panel" aria-labelledby="city-title">' +
-  sectionHead("记录区划","city","地点索引",'<button id="selected-clear" type="button" data-action="clear-city" class="quiet" hidden>取消选中</button>') +
+  sectionHead("记录区划","city",'<button id="selected-clear" type="button" data-action="clear-city" class="quiet" hidden>取消选中</button>') +
   '<div id="cities"></div></section>';
 
-let observer, miniObserver;
+let observer;
 let projection;
 function layout() {
   observer?.disconnect();
-  const descriptions = {map:"从地图查看记录留下的地理记录。",journal:"按时间翻阅照片中留下的城市与行程。",timeline:"交叉查看时间范围、地点与示例记录。"};
-  const header = '<section class="masthead"><div class="mast-copy"><p class="section-meta" id="range-note"></p><h1>' +
-    names[s.design] + '</h1><p>' + descriptions[s.design] + '</p></div><div id="stats" class="stats"></div></section>';
+  const header = '<section class="masthead"><div class="mast-copy"><p class="section-meta" id="range-note"></p>' +
+    '<h1>足迹图鉴</h1></div><div id="stats" class="stats"></div></section>';
   const filters = '<section class="filter-bar" aria-label="报告筛选"><label>范围<select id="scope" aria-label="地理范围"><option value="domestic">国内</option><option value="world">全球</option></select></label>' +
     '<label>年份<select id="years" aria-label="筛选年份"></select></label>' +
     '<label>起始<input id="from" type="date" value="' + esc(s.from) + '"></label><label>截止<input id="to" type="date" value="' +
     esc(s.to) + '"></label><label class="checkbox"><input type="checkbox" id="unknown" ' + (s.unknown ? "checked" : "") +
     '> 含日期未知</label><button class="quiet" data-action="clear-filter">重置筛选</button><div class="filter-actions">' +
-    '<button class="quiet" data-action="history">多年轨迹 ↓</button><button class="outline" data-action="export">导出报告</button></div></section>';
-  const layouts = {
-    map:'<div class="map-grid"><div class="map-main">' + mapSection + timeSection + '</div><aside class="map-side">' + citySection + journeySection + '</aside></div>',
-    journal:'<div class="editorial"><aside class="editorial-rail">' + timeSection +
-      '<nav class="panel year-index" id="year-index" aria-label="年鉴年份索引"></nav>' + citySection +
-      '</aside><div class="editorial-main">' + mapSection + journeySection + '</div></div>',
-    timeline:'<div class="work-grid">' + timeSection + mapSection + citySection + journeySection + '</div>'
-  };
-  app.innerHTML = header + filters + layouts[s.design] +
+    '<button class="quiet" data-action="history">年度报告 ↓</button><button class="outline" data-action="export">导出报告</button></div></section>';
+  app.innerHTML = '<div class="content-shell">' + header + filters + '</div>' + mapSection +
+    '<div class="content-shell map-support">' + timeSection +
+    '<div class="map-details">' + citySection + journeySection + '</div>' +
     '<section class="panel history-panel" id="history-panel" aria-labelledby="history-title">' +
-    sectionHead("多年轨迹","history","按年回看") + '<div id="history-content"></div></section>' +
-    '<footer class="page-foot">虚构演示数据 · 行程以相邻记录分组 · 底图来自 Natural Earth</footer>';
+    '<div id="history-content"></div></section>' +
+    '</div>';
   $("#scope").value=s.scope;
   app.removeAttribute("aria-busy");
   observer = new ResizeObserver(renderMap);
   observer.observe($("#map-frame"));
   mapDrag();
+  syncMapMode();
   update();
-}
-function setDesign() {
-  const hash = location.hash.slice(1);
-  const previous = s.design;
-  s.design = Object.hasOwn(names,hash) ? hash : "map";
-  document.body.dataset.design = s.design;
-  for (const link of document.querySelectorAll("[data-design-link]")) {
-    if (link.dataset.designLink === s.design) link.setAttribute("aria-current","page");
-    else link.removeAttribute("aria-current");
-  }
-  if (s.data) layout();
-  if (previous !== s.design) window.scrollTo(0,0);
 }
 function evidence(photo) {
   return button("photo",'<span>' + esc(basename(photo.path)) + '</span><small>' +
@@ -134,9 +118,8 @@ function journalList() {
     const heading = nextYear === year ? "" : '<h3 class="journal-year" id="journal-' + nextYear + '">' + nextYear + ' <small>年</small></h3>';
     year = nextYear;
     const stamp = dateLabel(record.start) + (record.start === record.end ? "" : " – " + dateLabel(record.end));
-    const mini = s.design === "journal" ? '<canvas class="mini-map" data-journey="' + record.id + '" aria-label="行程小地图"></canvas>' : "";
     return heading + '<article class="journey"><div class="journey-summary"><div><time>' + stamp + '</time><h4>' +
-      esc(journeyTitle(record,s.data.cities)) + '</h4><p>' + record.items.length + ' 张照片</p></div>' + mini +
+      esc(journeyTitle(record,s.data.cities)) + '</h4><p>' + (record.home ? '外地行程' : '到访记录 · 常住地待定') + ' · ' + record.items.length + ' 条示例</p></div>' +
       '</div><div class="journey-actions">' + button("journey","定位地图 ↗",record.id,"quiet") +
       '<details><summary>示例记录</summary><div class="evidence-list">' + record.items.slice(0,20).map(evidence).join("") + '</div>' +
       (record.items.length > 20 ? button("journey-photos","查看全部记录",record.id,"quiet") : "") + '</details></div></article>';
@@ -171,7 +154,7 @@ function update() {
   s.points = pointsOf(current);
   const point = selected();
   if (!point) s.selected = null;
-  s.records = journeys(point?.items || current);
+  s.records = filterJourneys(analysis().records,point?.items || current);
   const cityCount = s.points.length;
   const geo = current.filter((p) => p.city).length;
   const years = [...new Set(photos.map((p) => day(p).slice(0,4)).filter(Boolean))].sort().reverse();
@@ -179,56 +162,57 @@ function update() {
     '<option value="' + year + '">' + year + ' 年</option>').join("");
   $("#years").value = s.year;
   $("#range-note").textContent = dates.length ? dateLabel(dates[0]) + " — " + dateLabel(dates.at(-1)) : "虚构示例";
-  $("#stats").innerHTML = [[cityCount,"记录区划"],[geo,"带地点的记录"],[current.length,"演示记录"]].map(([value,label]) =>
+  const totals = [[current.length,"条演示记录"]];
+  if (geo !== current.length) totals.push([geo,"有地点"]);
+  $("#stats").innerHTML = totals.map(([value,label]) =>
     '<div><strong>' + number(value) + '</strong><span>' + label + '</span></div>').join("");
   $("#unknown").disabled = Boolean(s.from || s.to || s.cursor);
   $("#map-count").textContent = cityCount + " 个区划";
-  $("#map-hint").textContent = point ? "已选 " + point.name : "点击着色区域查看记录";
+  $("#map-hint").textContent = point ? point.name : "";
   $("#journey-count").textContent = s.records.length + " 段";
   $("#cities").innerHTML = cityList();
   $("#journeys").innerHTML = journalList();
-  if ($("#year-index")) {
-    const years = [...new Set(s.records.map((record) => record.start.slice(0,4)))];
-    $("#year-index").hidden = !years.length;
-    $("#year-index").innerHTML = '<p>年鉴索引</p><div>' + years.map((year) => button("jump-year",year,year,"outline")).join("") + '</div>';
-  }
   $("#selected-clear").hidden = !s.selected;
   renderTime(photos);
   renderMap();
   renderHistory(photos);
-  miniObserver?.disconnect();
-  miniObserver = new IntersectionObserver((entries, watcher) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const record = s.records.find((item) => item.id === entry.target.dataset.journey);
-      if (record) drawMap(entry.target,s.world,pointsOf(record.items),{mini:true,regions:regions(),domestic:s.scope === "domestic"});
-      watcher.unobserve(entry.target);
-    }
-  }, {rootMargin:"100px"});
-  for (const canvas of document.querySelectorAll(".mini-map")) miniObserver.observe(canvas);
+
 }
 let historyCache;
+let journeyCache;
+function analysis() {
+  if (journeyCache?.data !== s.data) {
+    const photos=allPhotos();
+    const residences=inferResidences(photos);
+    journeyCache={data:s.data,residences,records:journeys(photos,residences)};
+  }
+  return journeyCache;
+}
 function renderHistory(photos) {
   const container=$("#history-content");
   if (historyCache?.data !== s.data || historyCache.scope !== s.scope) {
-    historyCache={data:s.data,scope:s.scope,stats:historyStats(photos,s.data.cities),container:null};
+    const {residences,records}=analysis();
+    const cities=Object.fromEntries(Object.entries(s.data.cities).filter(([,city])=>s.scope==="world" || city.domestic));
+    historyCache={data:s.data,scope:s.scope,stats:historyStats(photos,cities,residences,records),container:null};
   }
   if (historyCache.container === container) return;
-  container.innerHTML=historyMarkup(historyCache.stats,s.scope,s.historyCity);
+  container.innerHTML=historyMarkup(historyCache.stats,s.scope,s.historyCity,s.reportYear);
   historyCache.container=container;
 }
 function renderMap() {
   const canvas = $("#atlas-map");
   if (!canvas || !s.data) return;
-  projection = drawMap(canvas,s.world,s.points,{design:s.design,base:s.base,camera:s.camera,
-    regions:regions(),domestic:s.scope === "domestic",selected:s.selected});
+  projection = drawMap(canvas,s.world,s.points,{design:"map",base:s.base,camera:s.camera,
+    regions:regions(),domestic:s.scope === "domestic",selected:s.selected,mode:s.mapMode});
   if (!projection) return;
   const {pos,width,height} = projection;
   const occupied = [];
   const labels = [];
   const ordered = [...s.points].sort((a,b) => Number(b.id === s.selected) - Number(a.id === s.selected) || b.items.length - a.items.length);
   for (const point of ordered) {
-    const [x,y] = pos(point.lat,point.lon);
+    const position=pos(point.lat,point.lon);
+    if (!position) continue;
+    const [x,y] = position;
     if (x < 12 || x > width - 12 || y < 12 || y > height - 12) continue;
     const active = point.id === s.selected;
     if (width > 490 || point.items.length > 20 || active) {
@@ -247,7 +231,7 @@ function renderMap() {
 }
 function mapDrag() {
   const canvas = $("#atlas-map");
-  let drag;
+  let drag, frame;
   canvas.addEventListener("pointerdown", (event) => {
     if (!projection || event.button !== 0) return;
     drag = {x:event.clientX, y:event.clientY, ...projection.center};
@@ -257,9 +241,11 @@ function mapDrag() {
     if (!drag || !projection) return;
     if (!drag.moved && Math.hypot(event.clientX-drag.x,event.clientY-drag.y) < 4) return;
     drag.moved=true;
-    s.camera.center = {lat:Math.max(-85,Math.min(85,drag.lat + (event.clientY-drag.y)/projection.scale)),
-      lon:Math.max(-180,Math.min(180,drag.lon - (event.clientX-drag.x)/projection.scale))};
-    renderMap();
+    s.camera.center = projection.pan(drag,event.clientX-drag.x,event.clientY-drag.y);
+    if (!frame) frame=requestAnimationFrame(()=>{
+      frame=null;
+      renderMap();
+    });
   });
   canvas.addEventListener("pointerup", (event) => {
     if (!drag || drag.moved || !projection) return;
@@ -268,6 +254,20 @@ function mapDrag() {
     if (id) focusPlace(id,false);
   });
   canvas.addEventListener("lostpointercapture", () => { drag = null; });
+  canvas.addEventListener("keydown",(event)=>{
+    const step={ArrowLeft:[48,0],ArrowRight:[-48,0],ArrowUp:[0,48],ArrowDown:[0,-48]}[event.key];
+    if (!step || !projection) return;
+    event.preventDefault();
+    s.camera.center=projection.pan(projection.center,...step);
+    renderMap();
+  });
+}
+
+function syncMapMode() {
+  $("#map-frame").dataset.mode=s.mapMode;
+  for (const option of document.querySelectorAll('[data-action="map-mode"]')) {
+    option.setAttribute("aria-pressed",String(option.dataset.value===s.mapMode));
+  }
 }
 
 function pause() { clearInterval(s.timer); s.timer = null; }
@@ -302,7 +302,8 @@ function focusPlace(id, zoom = true) {
   const point = s.points.find((p) => p.id === id);
   if (!point) return;
   s.selected = id;
-  if (zoom) s.camera={zoom:.9,center:null,bounds:point.bounds};
+  if (zoom) s.camera=s.mapMode==="globe" ? {zoom:1.5,center:{lat:point.lat,lon:point.lon}} :
+    {zoom:.9,center:null,bounds:point.bounds};
   update();
 }
 function openDialog(title,html,kind) {
@@ -319,7 +320,9 @@ function photoDialog(id) {
     '</dd><dt>来源</dt><dd>程序生成的虚构示例</dd></dl>',"photo");
 }
 function exportReport() {
-  const html = makeReport(sliced(activePhotos()),s.data.cities,s.world,regions(),s.scope === "domestic");
+  const photos=sliced(activePhotos());
+  const html = makeReport(photos,s.data.cities,s.world,regions(),s.scope === "domestic",
+    filterJourneys(analysis().records,photos),annualExport(historyCache.stats,s.reportYear || s.year));
   const url = URL.createObjectURL(new Blob([html],{type:"text/html;charset=utf-8"}));
   const link = document.createElement("a");
   link.href=url; link.download="照片足迹演示报告.html"; link.click();
@@ -348,9 +351,15 @@ document.addEventListener("click",(event) => {
     if (action === "mode") {s.mode=value;update();}
     if (action === "clear-time") {pause();s.cursor=null;s.selected=null;update();}
     if (action === "clear-filter") {s.unknown=true;$("#unknown").checked=true;setRange("","");}
+    if (action === "map-mode" && s.mapMode !== value) {
+      s.mapMode=value;
+      s.camera={zoom:1,center:null};
+      syncMapMode();
+      renderMap();
+    }
     if (action === "fit") {s.camera={zoom:1,center:null};renderMap();}
     if (action === "zoom-in" || action === "zoom-out") {
-      s.camera.zoom=Math.min(12,Math.max(.6,s.camera.zoom*(action === "zoom-in" ? 1.35 : 1/1.35)));
+      s.camera.zoom=Math.min(s.mapMode==="globe" ? 4 : 12,Math.max(.6,s.camera.zoom*(action === "zoom-in" ? 1.35 : 1/1.35)));
       renderMap();
     }
     if (action === "photos") photosDialog(0,null);
@@ -368,10 +377,6 @@ document.addEventListener("click",(event) => {
         if (second) focusPlace(second);
       }
       $("#map-title").scrollIntoView({block:"start"});
-    }
-    if (action === "jump-year") {
-      if (!$("#journal-" + value)) setRange(value + "-01-01",value + "-12-31",value);
-      $("#journal-" + value)?.scrollIntoView({block:"start"});
     }
     if (action === "photo") photoDialog(value);
     if (action === "export") exportReport();
@@ -393,8 +398,14 @@ document.addEventListener("change",(event) => {
   }
   if (input.id === "history-city") {
     s.historyCity=input.value;
-    const city=historyCache.stats.cities.find((item) => item.id === s.historyCity);
+    const city=historyCache.stats.returns.find((item) => item.id === s.historyCity);
     if (city) $("#visit-summary").innerHTML=visitMarkup(city);
+  }
+  if (input.id === "report-year") {
+    s.reportYear=input.value;
+    historyCache.container=null;
+    renderHistory(activePhotos());
+    $("#report-year").focus();
   }
   if (input.id === "years") setRange(input.value ? input.value + "-01-01" : "",input.value ? input.value + "-12-31" : "",input.value);
   if (input.id === "from" || input.id === "to") setRange($("#from").value,$("#to").value);
@@ -409,11 +420,10 @@ document.addEventListener("input",(event) => {
   update();
 });
 dialog.addEventListener("close",() => {s.drawer=null;});
-window.addEventListener("hashchange",setDesign);
 
 try {
   [s.data,s.world,s.domesticRegions] = await Promise.all([loadAsset("/demo.json"),loadAsset("/world.json"),loadAsset("/regions.json")]);
-  setDesign();
+  layout();
 } catch (error) {
   app.innerHTML='<p class="initial">' + esc(error.message) + '</p>';
   app.removeAttribute("aria-busy");

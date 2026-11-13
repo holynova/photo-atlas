@@ -16,7 +16,55 @@ export function group(items, key) {
   return result;
 }
 
-const coordinateKey = (photo) => "@" + photo.lat.toFixed(1) + "," + photo.lon.toFixed(1);
+export const dayGap = (from,to) => (Date.parse(to)-Date.parse(from))/86400000;
+const monthNumber = (value) => Number(value.slice(0,4))*12+Number(value.slice(5,7));
+
+export function inferResidences(photos) {
+  const monthly=new Map();
+  for (const photo of photos) {
+    if (!day(photo) || !photo.city || photo.source==="confirmed") continue;
+    const key=month(photo);
+    if (!monthly.has(key)) monthly.set(key,new Map());
+    const cities=monthly.get(key);
+    if (!cities.has(photo.city)) cities.set(photo.city,new Set());
+    cities.get(photo.city).add(day(photo));
+  }
+  const leaders=[];
+  for (const [key,cities] of [...monthly].sort(([a],[b])=>a.localeCompare(b))) {
+    const ranking=[...cities].sort(([,a],[,b])=>b.size-a.size);
+    const [[city,dates],second]=ranking;
+    if (dates.size<3 || dates.size===second?.[1].size) continue;
+    const ordered=[...dates].sort();
+    const share=dates.size/ranking.reduce((sum,[,set])=>sum+set.size,0);
+    leaders.push({key,city,start:ordered[0],end:ordered.at(-1),days:dates.size,
+      strong:share>=.6 && dayGap(ordered[0],ordered.at(-1))>=10});
+  }
+  const runs=[];
+  for (const item of leaders.filter((entry)=>entry.strong)) {
+    const last=runs.at(-1);
+    if (last?.city===item.city && monthNumber(item.key)-monthNumber(last.months.at(-1).key)<=8) last.months.push(item);
+    else runs.push({city:item.city,months:[item]});
+  }
+  const stable=runs.filter(({months})=>months.length>=3 &&
+    dayGap(months[0].start,months.at(-1).end)>=75 && months.reduce((n,m)=>n+m.days,0)>=12);
+  const phases=[];
+  for (const run of stable) {
+    const first=run.months[0], last=run.months.at(-1);
+    const previous=phases.at(-1);
+    const next=stable[phases.length+1]?.months[0];
+    const earlier=leaders.filter((m)=>m.city===run.city && m.key<first.key &&
+      monthNumber(first.key)-monthNumber(m.key)<=3 && (!previous || m.start>previous.end));
+    const later=leaders.filter((m)=>m.city===run.city && m.key>last.key &&
+      monthNumber(m.key)-monthNumber(last.key)<=5 && (!next || m.key<next.key));
+    phases.push({city:run.city,start:earlier[0]?.start || first.start,end:later.at(-1)?.end || last.end,
+      months:run.months.length,days:run.months.reduce((n,m)=>n+m.days,0)});
+  }
+  return phases;
+}
+
+export function residenceOn(phases,date) {
+  return phases.find((phase)=>date>=phase.start && date<=phase.end)?.city;
+}
 
 export function places(photos, cities) {
   const matched = [...group(photos, (p) => p.city)].map(([id, items]) => ({...cities[id], items}));
@@ -24,29 +72,41 @@ export function places(photos, cities) {
   return matched;
 }
 
-export function journeys(photos) {
-  const ordered = photos.filter((p) => day(p) && (p.city || p.lat !== null)).sort((a,b) => a.stamp.localeCompare(b.stamp));
+export function journeys(photos, residences) {
+  const ordered = photos.filter((p) => day(p) && p.city).sort((a,b) => a.stamp.localeCompare(b.stamp) || a.id-b.id);
   const records = [];
-  for (const photo of ordered) {
-    const date = day(photo);
-    const location = photo.city || coordinateKey(photo);
-    const last = records.at(-1);
-    const gap = last ? (Date.parse(date) - Date.parse(last.end)) / 86400000 : Infinity;
-    if (!last || date.slice(0, 7) !== last.start.slice(0, 7) || gap > 2) {
-      records.push({id:String(photo.id), start:date, end:date, items:[photo], locations:[location]});
-    } else {
-      last.end = date;
-      last.items.push(photo);
-      if (last.locations.at(-1) !== location) last.locations.push(location);
+  const ongoing=new Map();
+  for (const [date,items] of group(ordered,day)) {
+    const home=residenceOn(residences,date);
+    const cities=group(items,(photo)=>photo.city);
+    for (const city of ongoing.keys()) {
+      if (!cities.has(city) || city===home) ongoing.delete(city);
+    }
+    for (const [city,photosAtCity] of cities) {
+      if (city===home) continue;
+      let visit=ongoing.get(city);
+      if (!visit || visit.home!==home || dayGap(visit.end,date)>7) {
+        visit={id:String(photosAtCity[0].id),city,home,start:date,end:date,items:[]};
+        records.push(visit);
+        ongoing.set(city,visit);
+      }
+      visit.end=date;
+      visit.items.push(...photosAtCity);
     }
   }
   return records.reverse();
 }
 
+export function filterJourneys(records,photos) {
+  const ids=new Set(photos.map((photo)=>photo.id));
+  return records.flatMap((record)=>{
+    const items=record.items.filter((photo)=>ids.has(photo.id));
+    return items.length ? [{...record,start:day(items[0]),end:day(items.at(-1)),items}] : [];
+  }).sort((a,b)=>b.start.localeCompare(a.start));
+}
+
 export function journeyTitle(record, cities) {
-  const names = record.locations.map((id) => cities[id]?.name || "未归属地点");
-  const unique = names.filter((name, index) => index === 0 || name !== names[index - 1]);
-  return unique.slice(0,4).join(" → ") + (unique.length > 4 ? " 等" : "");
+  return cities[record.city]?.name || "未归属地点";
 }
 
 const palettes = {
@@ -54,51 +114,123 @@ const palettes = {
   journal: {water:"#e7eeeb", land:"#c3d3c8", border:"#9eafa4", grid:"#cedbd4", pin:"#ac4a2c"},
   timeline: {water:"#eaf0f9", land:"#d6e1f0", border:"#a9bad1", grid:"#d4dfef", pin:"#324ac3"}
 };
+const radians = Math.PI / 180;
+const latitudeLimit = 85.051129;
+const clamp = (value,limit) => Math.max(-limit,Math.min(limit,value));
+const mercatorY = (lat) => Math.log(Math.tan(Math.PI/4 + clamp(lat,latitudeLimit)*radians/2))/radians;
+const mercatorLat = (y) => (2*Math.atan(Math.exp(y*radians))-Math.PI/2)/radians;
+
 function bounds(points, width, height, box) {
-  if (box) {
-    const [left,bottom,right,top] = box;
-    return {lat:(bottom+top)/2,lon:(left+right)/2,scale:Math.min(width/Math.max(.12,right-left)/1.12,height/Math.max(.12,top-bottom)/1.12)};
+  if (!box) {
+    const xs=points.map((point)=>point.lon), ys=points.map((point)=>point.lat);
+    box=points.length ? [Math.min(...xs)-8,Math.min(...ys)-6,Math.max(...xs)+8,Math.max(...ys)+6] :
+      [-180,-66,180,78];
   }
-  if (!points.length) return {lat:23, lon:18, scale:Math.min(width / 365, height / 155)};
-  const xs = points.map((p) => p.lon), ys = points.map((p) => p.lat);
-  return {lat:(Math.min(...ys) + Math.max(...ys)) / 2, lon:(Math.min(...xs) + Math.max(...xs)) / 2,
-    scale:Math.min(width / Math.max(12, Math.max(...xs) - Math.min(...xs) + 16),
-                   height / Math.max(10, Math.max(...ys) - Math.min(...ys) + 12))};
+  const [left,bottom,right,top]=box;
+  const low=mercatorY(bottom), high=mercatorY(top);
+  return {lat:mercatorLat((low+high)/2),lon:(left+right)/2,
+    scale:Math.min(width/Math.max(.12,right-left),height/Math.max(.12,high-low))/1.12};
 }
 
 const paths = new WeakMap();
-function pathFor(feature) {
-  if (paths.has(feature)) return paths.get(feature);
+function pathFor(polygons) {
+  if (paths.has(polygons)) return paths.get(polygons);
   const path = new Path2D();
-  for (const polygon of feature.polygons) {
+  for (const polygon of polygons) {
     for (const ring of polygon) {
       const [x,y] = ring[0];
-      path.moveTo(x,y);
-      for (let i = 1; i < ring.length; i++) path.lineTo(...ring[i]);
+      path.moveTo(x,mercatorY(y));
+      for (let i = 1; i < ring.length; i++) path.lineTo(ring[i][0],mercatorY(ring[i][1]));
       path.closePath();
     }
   }
-  paths.set(feature,path);
+  paths.set(polygons,path);
   return path;
 }
 
+const sphere = {type:"Sphere"};
+const sphericalGeometry = new WeakMap();
+function globeGeometry(polygons) {
+  if (sphericalGeometry.has(polygons)) return sphericalGeometry.get(polygons);
+  const coordinates=polygons.map((polygon)=>polygon.map((ring,index)=>{
+    // D3 uses clockwise exterior rings for polygons smaller than a hemisphere.
+    const larger=globalThis.d3.geoArea({type:"Polygon",coordinates:[ring]})>2*Math.PI;
+    return larger === (index===0) ? [...ring].reverse() : ring;
+  }));
+  const geometry={type:"MultiPolygon",coordinates};
+  sphericalGeometry.set(polygons,geometry);
+  return geometry;
+}
+
+function paintRegion(ctx,path,palette,lit,active,lineScale=1) {
+  ctx.fillStyle=lit ? palette.pin : palette.land;
+  ctx.strokeStyle=active ? palette.pin : palette.border;
+  ctx.lineWidth=(active ? 1.7 : .65)/lineScale;
+  ctx.globalAlpha=active ? .96 : lit ? .78 : 1;
+  if (path) ctx.fill(path,"evenodd");
+  else ctx.fill("evenodd");
+  ctx.globalAlpha=1;
+  if (path) ctx.stroke(path);
+  else ctx.stroke();
+}
+
 export function drawMap(canvas, world, points, options = {}) {
-  const {design = "journal", base = points, camera, mini = false, exported = false,
-    regions = [], domestic = false, selected} = options;
+  const {design = "journal", base = points, camera, exported = false,
+    regions = [], domestic = false, selected, mode = "flat"} = options;
   const palette = palettes[design];
-  const width = exported ? 1050 : mini ? 144 : Math.round(canvas.clientWidth);
-  const height = exported ? 470 : mini ? 86 : Math.round(canvas.clientHeight);
+  const width = exported ? 1050 : Math.round(canvas.clientWidth);
+  const height = exported ? 470 : Math.round(canvas.clientHeight);
   if (!width || !height) return null;
   const dpr = exported ? 1 : Math.min(devicePixelRatio || 1, 2);
-  canvas.width = width * dpr;
-  canvas.height = height * dpr;
+  if (canvas.width !== Math.round(width*dpr)) canvas.width=Math.round(width*dpr);
+  if (canvas.height !== Math.round(height*dpr)) canvas.height=Math.round(height*dpr);
   const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-  const clip = camera?.bounds || (domestic && !mini ? [73,17,135.2,54] : null);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const clip = camera?.bounds || (domestic ? [73,17,135.2,54] : null);
   const fit = bounds(base, width, height, clip);
   const center = camera?.center || fit;
   const scale = fit.scale * (camera?.zoom || 1);
-  const pos = (lat, lon) => [width / 2 + (lon - center.lon) * scale, height / 2 - (lat - center.lat) * scale];
+  const yCenter=mercatorY(center.lat);
+  const lit = new Set(points.map((point) => point.id));
+  const eligible=regions.filter((region)=>(region.domestic || lit.has(region.id)) && (!domestic || region.domestic));
+  if (mode === "globe") {
+    const d3=globalThis.d3;
+    const radius=Math.min(width,height)*.46*(camera?.zoom || 1);
+    const globe=d3.geoOrthographic().translate([width/2,height/2]).scale(radius)
+      .rotate([-center.lon,-center.lat,0]).clipAngle(90).precision(.8);
+    const path=d3.geoPath(globe,ctx);
+    ctx.fillStyle=design==="map" ? "#0e191d" : palette.grid;
+    ctx.fillRect(0,0,width,height);
+    ctx.beginPath();
+    path(sphere);
+    ctx.fillStyle=palette.water;
+    ctx.fill();
+    ctx.strokeStyle=palette.border;
+    ctx.lineWidth=1;
+    ctx.stroke();
+    ctx.beginPath();
+    path(d3.geoGraticule10());
+    ctx.strokeStyle=palette.grid;
+    ctx.stroke();
+    ctx.beginPath();
+    path(globeGeometry(world));
+    paintRegion(ctx,null,palette,false,false);
+    for (const region of eligible) {
+      ctx.beginPath();
+      path(globeGeometry(region.polygons));
+      paintRegion(ctx,null,palette,lit.has(region.id),region.id===selected);
+    }
+    return {
+      width,height,center,
+      pos:(lat,lon)=>d3.geoDistance([center.lon,center.lat],[lon,lat]) < Math.PI/2-.035 ? globe([lon,lat]) : null,
+      hit:(x,y)=>Math.hypot(x-width/2,y-height/2)<=radius ? hitRegion(ctx,eligible,lit,...globe.invert([x,y])) : null,
+      pan:(start,dx,dy)=>({
+        lon:((start.lon-dx/radius/radians+180)%360+360)%360-180,
+        lat:clamp(start.lat+dy/radius/radians,89)
+      })
+    };
+  }
+  const pos = (lat, lon) => [width / 2 + (lon - center.lon) * scale, height / 2 - (mercatorY(lat) - yCenter) * scale];
   ctx.fillStyle = palette.water;
   ctx.fillRect(0, 0, width, height);
   ctx.beginPath();
@@ -113,65 +245,24 @@ export function drawMap(canvas, world, points, options = {}) {
   }
   ctx.strokeStyle = palette.grid;
   ctx.stroke();
-  ctx.fillStyle = palette.land;
-  ctx.strokeStyle = palette.border;
-  ctx.lineWidth = .7;
-  for (const polygon of domestic ? [] : world) {
-    ctx.beginPath();
-    for (const ring of polygon) {
-      ring.forEach(([lon,lat], index) => {
-        const [x,y] = pos(lat,lon);
-        if (index) ctx.lineTo(x,y); else ctx.moveTo(x,y);
-      });
-      ctx.closePath();
-    }
-    ctx.fill("evenodd");
-    ctx.stroke();
-  }
-  const lit = new Set(points.map((point) => point.id));
   const west = center.lon - width / (scale * 2), east = center.lon + width / (scale * 2);
-  const south = center.lat - height / (scale * 2), north = center.lat + height / (scale * 2);
-  const visible = regions.filter((region) => {
+  const south = mercatorLat(yCenter - height / (scale * 2)), north = mercatorLat(yCenter + height / (scale * 2));
+  const visible = eligible.filter((region) => {
     const [left,bottom,right,top] = region.bounds;
-    return (region.domestic || lit.has(region.id)) && (!domestic || region.domestic) &&
-      right >= west && left <= east && top >= south && bottom <= north;
+    return right >= west && left <= east && top >= south && bottom <= north;
   });
   ctx.save();
   ctx.translate(width / 2,height / 2);
   ctx.scale(scale,-scale);
-  ctx.translate(-center.lon,-center.lat);
-  for (const region of visible) {
-    if (lit.has(region.id)) continue;
-    ctx.fillStyle = palette.land;
-    ctx.strokeStyle = palette.border;
-    ctx.lineWidth = .62 / scale;
-    ctx.fill(pathFor(region),"evenodd");
-    ctx.stroke(pathFor(region));
-  }
-  for (const region of visible) {
-    if (!lit.has(region.id)) continue;
-    const active = region.id === selected;
-    ctx.fillStyle = palette.pin;
-    ctx.strokeStyle = active ? palette.pin : palette.border;
-    ctx.globalAlpha = active ? .96 : .78;
-    ctx.lineWidth = (active ? 1.7 : .7) / scale;
-    ctx.fill(pathFor(region),"evenodd");
-    ctx.globalAlpha = 1;
-    ctx.stroke(pathFor(region));
+  ctx.translate(-center.lon,-yCenter);
+  if (!domestic) paintRegion(ctx,pathFor(world),palette,false,false,scale);
+  for (const isLit of [false,true]) {
+    for (const region of visible) {
+      if (lit.has(region.id) !== isLit) continue;
+      paintRegion(ctx,pathFor(region.polygons),palette,isLit,region.id===selected,scale);
+    }
   }
   ctx.restore();
-  function hit(x,y) {
-    const lon = west + x/scale, lat = north - y/scale;
-    ctx.save();
-    ctx.resetTransform();
-    const region = visible.find((item) => {
-      const [left,bottom,right,top]=item.bounds;
-      return lit.has(item.id) && lon >= left && lon <= right && lat >= bottom && lat <= top &&
-        ctx.isPointInPath(pathFor(item),lon,lat,"evenodd");
-    });
-    ctx.restore();
-    return region?.id;
-  }
   if (exported && points.length < 25) {
     ctx.font = "12px sans-serif";
     ctx.fillStyle = "#172b26";
@@ -180,13 +271,31 @@ export function drawMap(canvas, world, points, options = {}) {
       ctx.fillText(point.name,x+6,y-4);
     }
   }
-  return {pos,width,height,center,scale,hit};
+  return {pos,width,height,center,
+    hit:(x,y)=>hitRegion(ctx,visible,lit,west+x/scale,mercatorLat(yCenter+(height/2-y)/scale)),
+    pan:(start,dx,dy)=>({
+      lon:clamp(start.lon-dx/scale,180),
+      lat:clamp(mercatorLat(mercatorY(start.lat)+dy/scale),latitudeLimit)
+    })
+  };
 }
 
-export function makeReport(photos, cities, world, regions, domestic) {
+function hitRegion(ctx,regions,lit,lon,lat) {
+  ctx.save();
+  ctx.resetTransform();
+  const y=mercatorY(lat);
+  const region=regions.find((item)=>{
+    const [left,bottom,right,top]=item.bounds;
+    return lit.has(item.id) && lon>=left && lon<=right && lat>=bottom && lat<=top &&
+      ctx.isPointInPath(pathFor(item.polygons),lon,y,"evenodd");
+  });
+  ctx.restore();
+  return region?.id;
+}
+
+export function makeReport(photos, cities, world, regions, domestic, records, annual) {
   const points = places(photos, cities);
   const matched = points;
-  const records = journeys(photos);
   const canvas = document.createElement("canvas");
   drawMap(canvas, world, points, {exported:true,regions,domestic});
   const dates = photos.map(day).filter(Boolean).sort();
@@ -206,6 +315,6 @@ export function makeReport(photos, cities, world, regions, domestic) {
     ' 个记录区划 · ' + (domestic ? "国内" : "全球") + '</p><img alt="照片足迹地图" src="' + canvas.toDataURL("image/png") +
     '"><small>区划边界 · Natural Earth</small><h2>行政区记录</h2>' +
     '<table><thead><tr><th>行政区</th><th>记录</th><th>首条日期</th><th>末条日期</th></tr></thead><tbody>' +
-    rows + '</tbody></table><h2>行程年鉴</h2>' + (entries || '<p>当前范围没有同时具备日期与地点的记录。</p>') +
+    rows + '</tbody></table>' + annual + '<h2>行程年鉴</h2>' + (entries || '<p>当前范围没有同时具备日期与地点的记录。</p>') +
     '<p>此报告由虚构数据生成，仅用于演示。</p></body></html>';
 }

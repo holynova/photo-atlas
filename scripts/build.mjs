@@ -4,7 +4,7 @@ import {makeFixture} from "./fixtures.mjs";
 const local = (path) => new URL("../"+path,import.meta.url);
 const read = (path) => readFile(local(path),"utf8");
 const write = (path,data) => writeFile(local("dist/"+path),data);
-const publicWeb = ["app.js","style.css","model.js","history.js","favicon.ico","_headers"];
+const publicWeb = ["app.js","style.css","model.js","history.js","favicon.ico","geo-vendor.js","geo-vendor.LICENSE","_headers"];
 const filenames = [...publicWeb,"index.html","demo.json","world.json","regions.json"].sort();
 const {version}=JSON.parse(await read("package.json"));
 const regions=JSON.parse(await read("assets/regions.json"));
