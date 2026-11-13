@@ -1,13 +1,14 @@
 {
   "name": "photo-atlas",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "npm run build && wrangler dev",
     "deploy:check": "npm run build && wrangler deploy --dry-run",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "publish:portfolio": "npm run build && node scripts/publish-to-portfolio.mjs"
   },
   "devDependencies": {
     "wrangler": "4.128.0"

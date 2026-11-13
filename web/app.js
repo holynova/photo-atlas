@@ -422,7 +422,7 @@ document.addEventListener("input",(event) => {
 dialog.addEventListener("close",() => {s.drawer=null;});
 
 try {
-  [s.data,s.world,s.domesticRegions] = await Promise.all([loadAsset("/demo.json"),loadAsset("/world.json"),loadAsset("/regions.json")]);
+  [s.data,s.world,s.domesticRegions] = await Promise.all([loadAsset("./demo.json"),loadAsset("./world.json"),loadAsset("./regions.json")]);
   layout();
 } catch (error) {
   app.innerHTML='<p class="initial">' + esc(error.message) + '</p>';
