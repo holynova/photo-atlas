@@ -1,16 +1,24 @@
 {
   "name": "photo-atlas",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "npm run build && wrangler dev",
     "deploy:check": "npm run build && wrangler deploy --dry-run",
-    "deploy": "npm run build && wrangler deploy",
-    "publish:portfolio": "npm run build && node scripts/publish-to-portfolio.mjs"
+    "publish:portfolio": "npm run build && node scripts/publish-to-portfolio.mjs",
+    "local": "node scripts/build.mjs && node local/cli.mjs serve",
+    "scan": "node scripts/build.mjs && node local/cli.mjs scan"
   },
   "devDependencies": {
     "wrangler": "4.128.0"
+  },
+  "dependencies": {
+    "exiftool-vendored": "^39.3.0",
+    "sharp": "^0.35.5"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>照片导入 · 三个入口原型</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/scan.css">
+<link rel="stylesheet" href="./prototype.css">
+<link rel="stylesheet" href="./picker.css">
+<script type="module" src="./picker.js"></script>
+</head>
+<body class="prototype">
+<header class="scan-nav"><a class="scan-brand" href="/scan"><i aria-hidden="true"></i>照片足迹</a><nav><a href="/scan">本地扫描工具</a><a href="/annual.html">年度报告示例 ↗</a></nav></header>
+<main id="stage"></main>
+<nav class="proto-picker" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">直接扫描</button>
+  <button class="proto-picker-item">导入向导</button>
+  <button class="proto-picker-item">照片工作台</button>
+</nav>
+</body>
+</html>
