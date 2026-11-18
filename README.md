@@ -1,20 +1,20 @@
+<p align="right"><a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="照片足迹 Photo Atlas — 地球仪上标着上海、成都、东京、悉尼，把照片变成城市地图">
 </p>
 
 <p align="center">
-  <a href="https://xiaosang.cc/photo-atlas/">▶ 在线体验 Live Demo</a>
+  <a href="https://xiaosang.cc/photo-atlas/">▶ 在线体验</a>
   ·
-  <a href="https://xiaosang.cc/photo-atlas/annual.html">照片报告 Photo Report</a>
+  <a href="https://xiaosang.cc/photo-atlas/annual.html">照片报告</a>
   ·
   <a href="https://github.com/holynova/photo-atlas">GitHub 仓库</a>
 </p>
 
 照片足迹把散落在硬盘里的照片，变成一张去过哪里、何时重逢的城市地图：本地扫描照片的拍摄时间与 GPS，在地球仪上点亮去过的城市，按年份回顾初次到访、久别重逢与最长停留。原图、索引和缩略图全部留在本机，什么都不上传。
 
-Photo Atlas turns the photos scattered across your hard drive into a map of where you've been and when you returned: scan a folder locally, read each photo's time and GPS, light up visited cities on a globe, and revisit first visits, reunions, and longest stays across the years. Originals, index, and thumbnails never leave your computer.
-
-## 截图 / Screenshots
+## 截图
 
 <p align="center">
   <img src="./assets/readme/screenshot-globe.png" width="800" alt="城市足迹首页：示例数据 15 城、7 国家/地区、1,153 天、9.0 年，地球仪上标记成都、上海、东京、悉尼等城市">
@@ -23,7 +23,7 @@ Photo Atlas turns the photos scattered across your hard drive into a map of wher
 
 公开演示使用虚构记录和生成配图。
 
-## 功能 / Features
+## 功能
 
 - **城市足迹**：切换地球仪和平面地图，按年份或国家筛选；逐年点亮回放，看城市一座座亮起来。
 - **补打卡与清单**：手动补录到访、做旅行清单；标记老家、工作地和常住地等城市角色。
@@ -31,7 +31,7 @@ Photo Atlas turns the photos scattered across your hard drive into a map of wher
 - **分享卡**：自选城市，导出无照片的足迹卡；照片报告的分享卡可选加入封面。
 - **本地优先**：标注、手动打卡和旅行清单存在当前浏览器；重新扫描同一目录后可继续使用。
 
-## 本地扫描 / Local Scanning
+## 本地扫描
 
 需要 Node.js 22 或更新版本：
 
@@ -53,7 +53,7 @@ npm run local
 - **到访天数**：按有记录的自然日计算，同一天多座城市在总计里只计一次。
 - **数据位置**：每次扫描保存索引和去除元数据的缩略图；macOS 默认存到 `~/Library/Application Support/Photo Atlas`，可用 `PHOTO_ATLAS_DATA_DIR` 自定义；服务仅监听本机回环地址。
 
-## 技术 / Tech
+## 技术
 
 - 纯前端展示（`web/`，原生 JS + Canvas 地球仪）+ Node.js 本地扫描服务（`local/`）。
 - 元数据读取用 exiftool-vendored，缩略图用 sharp；中国市级边界与境外城市参考点见 `assets/`。
@@ -68,19 +68,3 @@ docs/               本地扫描说明、足迹调研与 120 项报告指标
 ```
 
 指标与调研见 `docs/footprint-research.md`，定位与统计细节见 `docs/local-scanning.md`。
-
-## English
-
-**Photo Atlas** maps the cities in your photo library — where you've been, and when you came back.
-
-- **City footprints**: switch between an interactive globe and a flat map; filter by year or country; replay cities lighting up year by year.
-- **Check-ins & lists**: manually add past visits, keep a travel wishlist, and tag cities with personal roles (hometown, workplace, home base).
-- **Photo reports**: revisit first visits, reunions, longest stays, and city changes across one year or many; open the map, calendar, or story cards to see the photos behind each moment.
-- **Share cards**: pick cities and export a footprint card with no photos attached; report cards can optionally include a cover.
-- **Local-first**: annotations, check-ins, and lists live in your browser and survive rescans of the same folder.
-- **Scan locally** (Node.js 22+): `git clone` the repo, `npm ci`, `npm run local`, pick a folder in the browser and hit scan — or run `npm run scan -- "/photo/folder"` directly. Reads JPEG, HEIC, HEIF, and PNG (subfolders included; hidden items, symlinks, and Apple Photos libraries skipped). Time comes from EXIF; cities are matched from GPS against Chinese prefecture boundaries at home and 15 km city reference points abroad. The demo uses fictional records and generated images.
-- **Tech**: vanilla JS + Canvas globe for the web demo (`web/`); Node.js scanning service (`local/`) using exiftool-vendored and sharp. Map data: Natural Earth 5.1.2 (public domain), chinese-global-compliant-geodata (TianDiTu source), GeoNames (CC BY 4.0).
-
-## 许可 / License
-
-本仓库暂未添加 LICENSE 文件；地理数据许可见 `assets/china-cities.LICENSE` 与 `web/geo-vendor.LICENSE`。
