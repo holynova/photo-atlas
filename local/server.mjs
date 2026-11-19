@@ -135,7 +135,7 @@ async function handle(req, res, authority, prototypes) {
     const index = await upgradeGeography(JSON.parse(data));
     return json(res,200,aggregate ? makeFootprint(index) : index);
   }
-  if (pathname === "/scan" || pathname === "/scan/") return serve(res,path.join(here,"scan.html"));
+  if (pathname === "/" || pathname === "/scan" || pathname === "/scan/") return serve(res,path.join(here,"scan.html"));
   const local = pathname.slice(1);
   if (localAssets.has(local)) return serve(res,path.join(here,local));
   if (prototypes && pathname.startsWith("/prototypes/scan/")) {

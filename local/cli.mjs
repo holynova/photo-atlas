@@ -39,7 +39,7 @@ async function main() {
         }
       }});
       console.log("本地索引 · " + dataRoot + "/" + result.id + "/index.json");
-      destination = url + "/annual.html?scan=" + result.id;
+      destination = url + "/footprint.html?scan=" + result.id;
     }
     console.log("打开 " + destination);
     if (!values["no-open"]) openBrowser(destination);

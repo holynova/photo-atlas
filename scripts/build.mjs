@@ -1,5 +1,6 @@
 import {readFile, writeFile, copyFile, readdir, mkdir} from "node:fs/promises";
 import path from "node:path";
+import {gunzipSync} from "node:zlib";
 import {fileURLToPath} from "node:url";
 import {makeFixture} from "./fixtures.mjs";
 import {makeAnnualFixture} from "./annual-fixture.mjs";
@@ -36,5 +37,6 @@ await write("regions.json",JSON.stringify(regions.filter((region)=>region.domest
 await write("demo.json",JSON.stringify(fixture));
 await write("annual-demo.json",JSON.stringify(annual));
 await write("footprint-demo.json",JSON.stringify(makeFootprint(annual)));
+await write("city-boundaries.json",gunzipSync(await readFile(local("assets/china-cities.json.gz"))));
 await write("city-catalog.json",JSON.stringify(await cityCatalog()));
 console.log("Built v"+version+" with "+fixture.photos.length+" map records and "+annual.photos.length+" annual demo records.");

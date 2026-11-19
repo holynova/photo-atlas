@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://xiaosang.cc/photo-atlas/">▶ Live Demo</a>
   ·
-  <a href="https://xiaosang.cc/photo-atlas/annual.html">Photo Report</a>
+  <a href="https://xiaosang.cc/photo-atlas/footprint.html">Travel Yearbook</a>
   ·
   <a href="https://github.com/holynova/photo-atlas">GitHub Repository</a>
 </p>
@@ -18,7 +18,7 @@ Photo Atlas turns the photos scattered across your hard drive into a map of wher
 
 <p align="center">
   <img src="./assets/readme/screenshot-globe.png" width="800" alt="City footprint home page: sample data of 15 cities, 7 countries/regions, 1,153 days, 9.0 years, with Chengdu, Shanghai, Tokyo, Sydney and more marked on the globe">
-  <img src="./assets/readme/reunion.png" width="800" alt="Photo report reunion moment: back in Quanzhou after 39 days, photos and dates from both visits side by side">
+  <img src="./assets/readme/yearbook.png" width="800" alt="Travel yearbook with administrative boundaries, city roles, and travel statistics">
 </p>
 
 The public demo uses fictional records and generated images.
@@ -27,8 +27,8 @@ The public demo uses fictional records and generated images.
 
 - **City footprints**: switch between an interactive globe and a flat map; filter by year or country; replay cities lighting up year by year.
 - **Check-ins & lists**: manually add past visits, keep a travel wishlist, and tag cities with personal roles (hometown, workplace, home base).
-- **Photo reports**: revisit first visits, reunions, longest stays, and city changes across one year or many; open the map, calendar, or story cards to see the photos behind each moment.
-- **Share cards**: pick cities and export a footprint card with no photos attached; report cards can optionally include a cover.
+- **Travel yearbook**: v1.2.0 combines the city map, home bases, visits, and reunions on one page. City areas use administrative boundaries, and the yearbook contains no photos.
+- **Share cards**: pick cities and export a footprint card with no photos attached; share the selected year as a photo-free yearbook card.
 - **Local-first**: annotations, check-ins, and lists live in your browser and survive rescans of the same folder.
 
 ## Scan Locally
@@ -42,7 +42,7 @@ npm ci
 npm run local
 ```
 
-Pick a folder in the browser or paste a path, then click 「开始扫描」 ("Start Scanning"). When it's done, open the photo report or city footprints from 「已生成报告」 ("Generated Reports"). Or run `npm run scan -- "/photo/folder"` directly.
+Pick a folder in the browser or paste a path, then click 「开始扫描」 ("Start Scanning"). When it's done, open the travel yearbook or city footprints from 「已生成报告」 ("Generated Reports"). Or run `npm run scan -- "/photo/folder"` directly.
 
 <p align="center">
   <img src="./assets/readme/local-scanner.png" width="640" alt="Local scanner page: choose or enter a photo directory, supporting JPEG, HEIC, HEIF, and PNG, subfolders included">

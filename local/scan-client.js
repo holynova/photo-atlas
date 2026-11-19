@@ -2,7 +2,7 @@ import {esc} from "/model.js";
 
 export {esc};
 export const number = value => new Intl.NumberFormat("zh-CN").format(value);
-export const reportLink = id => "/annual.html?scan=" + encodeURIComponent(id);
+export const reportLink = id => "/footprint.html?scan=" + encodeURIComponent(id);
 const idle = {phase:"idle"};
 const unfinished = new Set(["discovering","scanning"]);
 export const running = job => unfinished.has(job.phase);
@@ -129,8 +129,8 @@ export function scanStatus(job) {
   if (job.phase === "cancelled") return '<p class="state-note" role="status">扫描已取消，可以重新选择目录。</p>';
   if (job.phase === "done") return '<section class="result" aria-label="扫描结果"><h2>扫描完成</h2>' +
     scanStats(job.totals) + '<div class="result-links"><a class="primary" href="' + reportLink(job.id) +
-    '">打开我的年度报告 <span aria-hidden="true">↗</span></a><a class="secondary" href="/footprint.html?scan=' +
-    encodeURIComponent(job.id) + '">只看城市足迹</a></div></section>';
+    '">查看结果 <span aria-hidden="true">↗</span></a></div></section>';
+
   const totals = job.totals;
   return '<section class="result" aria-label="扫描进度"><div class="progress-head"><strong role="status">' +
     (totals ? "正在读取照片" : "正在查找照片") + '</strong>' +

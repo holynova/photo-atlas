@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://xiaosang.cc/photo-atlas/">▶ 在线体验</a>
   ·
-  <a href="https://xiaosang.cc/photo-atlas/annual.html">照片报告</a>
+  <a href="https://xiaosang.cc/photo-atlas/footprint.html">足迹年鉴</a>
   ·
   <a href="https://github.com/holynova/photo-atlas">GitHub 仓库</a>
 </p>
@@ -18,7 +18,7 @@
 
 <p align="center">
   <img src="./assets/readme/screenshot-globe.png" width="800" alt="城市足迹首页：示例数据 15 城、7 国家/地区、1,153 天、9.0 年，地球仪上标记成都、上海、东京、悉尼等城市">
-  <img src="./assets/readme/reunion.png" width="800" alt="照片报告重逢时刻：时隔 39 天又见泉州，两次到访的照片与日期并排对照">
+  <img src="./assets/readme/yearbook.png" width="800" alt="足迹年鉴：行政区轮廓、城市角色和旅行统计">
 </p>
 
 公开演示使用虚构记录和生成配图。
@@ -27,8 +27,8 @@
 
 - **城市足迹**：切换地球仪和平面地图，按年份或国家筛选；逐年点亮回放，看城市一座座亮起来。
 - **补打卡与清单**：手动补录到访、做旅行清单；标记老家、工作地和常住地等城市角色。
-- **照片报告**：回顾一年或多年里的初次到访、久别重逢、最长停留和城市变化；点开地图、日历或故事卡查看关联照片。
-- **分享卡**：自选城市，导出无照片的足迹卡；照片报告的分享卡可选加入封面。
+- **足迹年鉴**：v1.2.0 将城市地图、生活城市、到访记录和重逢故事汇入一页。用行政区轮廓展示城市，年鉴内容不含照片。
+- **分享卡**：自选城市，导出无照片的足迹卡；足迹年鉴也可按所选年份生成无照片分享卡。
 - **本地优先**：标注、手动打卡和旅行清单存在当前浏览器；重新扫描同一目录后可继续使用。
 
 ## 本地扫描
@@ -42,7 +42,7 @@ npm ci
 npm run local
 ```
 
-在浏览器里选目录或粘贴路径，点击**开始扫描**。完成后从「已生成报告」打开照片报告或城市足迹。也可直接运行 `npm run scan -- "/照片目录"`。
+在浏览器里选目录或粘贴路径，点击**开始扫描**。完成后从「已生成报告」打开足迹年鉴或城市足迹。也可直接运行 `npm run scan -- "/照片目录"`。
 
 <p align="center">
   <img src="./assets/readme/local-scanner.png" width="640" alt="本地扫描页：选择或输入照片目录，支持 JPEG、HEIC、HEIF、PNG，包含子目录">
